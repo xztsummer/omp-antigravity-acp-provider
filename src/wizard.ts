@@ -1,4 +1,4 @@
-import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionUIContext } from "@oh-my-pi/pi-coding-agent";
 
 import { inspectAntigravityAuth } from "./acp/antigravity.js";
 import { ensureAntigravityAcpReady, inspectRuntimeSetup } from "./acp/setup.js";
@@ -17,11 +17,11 @@ export async function runSetupWizard(
 	if (localAuth.status !== "oauth-refreshable" && localAuth.status !== "api-key-env") {
 		const loginNow = await ui.confirm(
 			"Antigravity authentication",
-			"Sign in with Google now? Choose No to use Pi's /login API-key flow later.",
+			"Sign in with Google now? Choose No to use OMP's /login API-key flow later.",
 		);
 		if (!loginNow) {
 			ui.notify(
-				`Runtime ${setup.installedVersion ?? setup.approvedVersion} ready at ${setup.launch?.command ?? "unknown path"}. Run /login and choose Google Antigravity (ACP) when ready.`,
+				`Runtime ${setup.installedVersion ?? setup.approvedVersion} ready at ${setup.launch?.command ?? "unknown path"}. Run /login and choose Google Antigravity (official ACP) when ready.`,
 				"warning",
 			);
 			return;
@@ -46,9 +46,9 @@ export async function runSetupWizard(
 	}
 
 	const selectedMode = await ui.select("Default Antigravity permission mode", [
-		"yolo — run commands and edits without confirmation",
+		"default — ask before sensitive operations (default)",
 		"auto-edit — allow edits; ask for commands",
-		"default — ask before sensitive operations",
+		"yolo — run commands and edits without confirmation",
 	]);
 	if (selectedMode) {
 		const mode = selectedMode.startsWith("auto-edit")

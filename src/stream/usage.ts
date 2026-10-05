@@ -1,5 +1,5 @@
 import type { PromptResponse } from "@agentclientprotocol/sdk";
-import type { Usage } from "@earendil-works/pi-ai";
+import type { Usage } from "@oh-my-pi/pi-ai";
 
 export function emptyUsage(): Usage {
 	return {
@@ -23,7 +23,7 @@ export function usageFromPrompt(response: PromptResponse): Usage {
 	usage.input = Math.max(0, input - usage.cacheRead);
 	usage.output = token(tokens?.output_tokens) ?? token(standard?.outputTokens) ?? 0;
 	const reasoning = token(standard?.thoughtTokens);
-	if (reasoning !== undefined) usage.reasoning = reasoning;
+	if (reasoning !== undefined) usage.reasoningTokens = reasoning;
 	usage.totalTokens = usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
 	return usage;
 }

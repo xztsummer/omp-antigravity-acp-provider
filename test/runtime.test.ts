@@ -1,12 +1,13 @@
-import type { Context, Model } from "@earendil-works/pi-ai";
+import type { Context, Model } from "@oh-my-pi/pi-ai";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Type } from "typebox";
+import { Type } from "@oh-my-pi/omptype/typebox";
 import { describe, expect, it } from "vitest";
 
 import { AntigravityAcpConnection } from "../src/acp/connection.js";
+import { PiEventWriter } from "../src/stream/pi-events.js";
 import { AcpSessionStore } from "../src/acp/session-store.js";
 import {
 	AntigravityRuntime,
@@ -21,6 +22,8 @@ const model: Model<"antigravity-acp"> = {
 	api: "antigravity-acp",
 	provider: "antigravity-acp",
 	baseUrl: "",
+	identity: { class: "unknown" },
+	compat: undefined,
 	reasoning: true,
 	input: ["text", "image"],
 	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -41,8 +44,8 @@ describe("AntigravityRuntime", () => {
 	});
 
 	it("relays Google login through Pi on a headless host", async () => {
-		const previousMode = process.env.PI_ANTIGRAVITY_ACP_OAUTH_MODE;
-		process.env.PI_ANTIGRAVITY_ACP_OAUTH_MODE = "manual";
+		const previousMode = process.env.OMP_ANTIGRAVITY_ACP_OAUTH_MODE;
+		process.env.OMP_ANTIGRAVITY_ACP_OAUTH_MODE = "manual";
 		const runtime = new AntigravityRuntime(
 			(options) =>
 				new AntigravityAcpConnection({
@@ -69,14 +72,14 @@ describe("AntigravityRuntime", () => {
 			expect(shownUrl).toMatch(/^https:\/\/accounts\.google\.com\//u);
 		} finally {
 			await runtime.close();
-			if (previousMode === undefined) delete process.env.PI_ANTIGRAVITY_ACP_OAUTH_MODE;
-			else process.env.PI_ANTIGRAVITY_ACP_OAUTH_MODE = previousMode;
+			if (previousMode === undefined) delete process.env.OMP_ANTIGRAVITY_ACP_OAUTH_MODE;
+			else process.env.OMP_ANTIGRAVITY_ACP_OAUTH_MODE = previousMode;
 		}
 	});
 
 	it("does not prompt when headless login reuses cached authentication", async () => {
-		const previousMode = process.env.PI_ANTIGRAVITY_ACP_OAUTH_MODE;
-		process.env.PI_ANTIGRAVITY_ACP_OAUTH_MODE = "manual";
+		const previousMode = process.env.OMP_ANTIGRAVITY_ACP_OAUTH_MODE;
+		process.env.OMP_ANTIGRAVITY_ACP_OAUTH_MODE = "manual";
 		const runtime = new AntigravityRuntime(
 			(options) => new AntigravityAcpConnection({ ...options, command: process.execPath, args: [fakeAgent] }),
 		);
@@ -93,8 +96,8 @@ describe("AntigravityRuntime", () => {
 			expect(progress).toContain("Antigravity reused the saved Google login.");
 		} finally {
 			await runtime.close();
-			if (previousMode === undefined) delete process.env.PI_ANTIGRAVITY_ACP_OAUTH_MODE;
-			else process.env.PI_ANTIGRAVITY_ACP_OAUTH_MODE = previousMode;
+			if (previousMode === undefined) delete process.env.OMP_ANTIGRAVITY_ACP_OAUTH_MODE;
+			else process.env.OMP_ANTIGRAVITY_ACP_OAUTH_MODE = previousMode;
 		}
 	});
 
@@ -104,7 +107,7 @@ describe("AntigravityRuntime", () => {
 		);
 		try {
 			const context: Context = {
-				systemPrompt: "Be useful",
+				systemPrompt: ["Be useful"],
 				messages: [{ role: "user", content: "hello", timestamp: Date.now() }],
 			};
 			const writer = runtime.stream(model, context, { sessionId: "pi-session", apiKey: "test-key" });
@@ -123,14 +126,14 @@ describe("AntigravityRuntime", () => {
 			const done = events.at(-1);
 			expect(done).toMatchObject({
 				type: "done",
-				message: { usage: { input: 7, output: 3, totalTokens: 10 }, rawStopReason: "end_turn" },
+				message: { usage: { input: 7, output: 3, totalTokens: 10 }, stopReason: "stop" },
 			});
 			const snapshot = await runtime.snapshot();
 			expect(snapshot.bindings).toBe(1);
-			expect(snapshot.permissionMode).toBe("yolo");
+			expect(snapshot.permissionMode).toBe("default");
 			expect(snapshot.processes[0]).toMatchObject({ modelId: "gemini-test", alive: true });
-			await runtime.setPermissionMode("default");
-			expect((await runtime.snapshot()).permissionMode).toBe("default");
+			await runtime.setPermissionMode("auto_edit");
+			expect((await runtime.snapshot()).permissionMode).toBe("auto_edit");
 			if (done?.type !== "done") throw new Error("missing first turn");
 			const switchedModel = { ...model, id: "auto", name: "Auto" };
 			const second = runtime.stream(
@@ -155,7 +158,7 @@ describe("AntigravityRuntime", () => {
 		}
 	});
 
-	it("restores a persisted ACP session across runtime restarts", async () => {
+	it.each([false, true])("restores a persisted ACP session across runtime restarts (interrupted history: %s)", async (interrupted) => {
 		const directory = fs.mkdtempSync(path.join(os.tmpdir(), "antigravity-runtime-session-"));
 		const store = new AcpSessionStore(path.join(directory, "sessions.json"));
 		const factory = (options: ConstructorParameters<typeof AntigravityAcpConnection>[0]) =>
@@ -163,7 +166,14 @@ describe("AntigravityRuntime", () => {
 		const firstRuntime = new AntigravityRuntime(factory, "yolo", store);
 		try {
 			const firstContext: Context = {
-				messages: [{ role: "user", content: "first", timestamp: 1 }],
+				messages: [
+					...(interrupted ? [
+						{ role: "user" as const, content: "interrupted", timestamp: 0 },
+						{ ...new PiEventWriter(model).message, stopReason: "aborted" as const, content: [{ type: "toolCall" as const, id: "failed-call", name: "echo", arguments: {} }] },
+						{ role: "toolResult" as const, toolCallId: "failed-call", toolName: "echo", content: [{type: "text" as const, text:"Cancelled"}], isError:true, timestamp:0 },
+					] : []),
+					{ role: "user", content: "first", timestamp: 1 },
+				],
 			};
 			const first = firstRuntime.stream(model, firstContext, { sessionId: "persisted", apiKey: "test-key" });
 			const firstEvents = [];
@@ -178,7 +188,7 @@ describe("AntigravityRuntime", () => {
 					model,
 					{
 						messages: [
-							...firstContext.messages,
+							...firstContext.messages.filter(message => message.role !== "toolResult" && !(message.role === "assistant" && message.stopReason === "aborted")),
 							done.message,
 							{ role: "user", content: "second", timestamp: 2 },
 						],

@@ -1,12 +1,13 @@
-import {
-	type Api,
-	type AssistantMessage,
-	type AssistantMessageEventStream,
-	createAssistantMessageEventStream,
-	type Model,
-	type StopReason,
-	type ToolCall,
-} from "@earendil-works/pi-ai";
+import type {
+	Api,
+	AssistantMessage,
+	AssistantMessageEventStream,
+	Model,
+	StopReason,
+	ToolCall,
+} from "@oh-my-pi/pi-ai";
+
+import { createAssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 
 import { errorMessage } from "../acp/errors.js";
 import { emptyUsage } from "./usage.js";
@@ -31,7 +32,7 @@ export class PiEventWriter {
 			provider: model.provider,
 			model: model.id,
 			usage: emptyUsage(),
-			stopReason: "pending",
+			stopReason: "stop",
 			timestamp: Date.now(),
 		};
 	}

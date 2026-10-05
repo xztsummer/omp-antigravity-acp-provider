@@ -7,7 +7,7 @@ import type {
 	RequestPermissionResponse,
 	SessionNotification,
 } from "@agentclientprotocol/sdk";
-import type { Context, Model, SimpleStreamOptions, ToolResultMessage } from "@earendil-works/pi-ai";
+import type { Api, Context, Model, SimpleStreamOptions, ToolResultMessage } from "@oh-my-pi/pi-ai";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { createHash } from "node:crypto";
 
@@ -44,7 +44,7 @@ const PERMISSION_TIMEOUT_MS = 120_000;
 const TOOL_TIMEOUT_MS = 120_000;
 const TOOL_BATCH_MS = 100;
 
-type AntigravityModel = Model<"antigravity-acp">;
+type AntigravityModel = Model<Api>;
 
 interface PendingPermission {
 	id: string;
@@ -138,7 +138,7 @@ export class AntigravityRuntime {
 
 	constructor(
 		connectionFactory?: AntigravityConnectionFactory,
-		permissionMode: PermissionMode = "yolo",
+		permissionMode: PermissionMode = "default",
 		sessionStore?: AcpSessionStore,
 	) {
 		this.connectionFactory = connectionFactory ?? ((options) => new AntigravityAcpConnection(options));
@@ -344,15 +344,17 @@ export class AntigravityRuntime {
 		options: SimpleStreamOptions,
 		writer: PiEventWriter,
 	): Promise<void> {
+		context = normalizeOmpHistory(context);
 		this.assertActive();
 		if (this.ensureAgent) await ensureAntigravityAcpReady();
+		const apiKey = typeof options.apiKey === "string" ? options.apiKey : undefined;
 		const persistent = Boolean(options.sessionId);
 		const key = options.sessionId
 			? `sid:${options.sessionId}`
 			: (this.findContinuationKey(context) ?? `ephemeral:${crypto.randomUUID()}`);
 		const tools = context.tools ?? [];
 		const acpModelId = resolveAcpModelId(model, options.reasoning);
-		let binding = await this.getBinding(key, model, acpModelId, options.apiKey, writer, tools, options.signal);
+		let binding = await this.getBinding(key, model, acpModelId, apiKey, writer, tools, options.signal);
 
 		// A permission tool result resumes the still-running ACP prompt rather than
 		// starting a second Antigravity turn.
@@ -362,7 +364,7 @@ export class AntigravityRuntime {
 			if (!result) {
 				cancelPermission(binding);
 				await this.dropBinding(key, binding);
-				binding = await this.getBinding(key, model, acpModelId, options.apiKey, writer, tools, options.signal);
+				binding = await this.getBinding(key, model, acpModelId, apiKey, writer, tools, options.signal);
 			} else {
 				binding.writer = writer;
 				binding.pendingContextCount = context.messages.length;
@@ -391,7 +393,7 @@ export class AntigravityRuntime {
 			if (results.some((result) => result.message === undefined)) {
 				cancelPiTools(binding, "Pi continued without returning every requested tool result");
 				await this.dropBinding(key, binding);
-				binding = await this.getBinding(key, model, acpModelId, options.apiKey, writer, tools, options.signal);
+				binding = await this.getBinding(key, model, acpModelId, apiKey, writer, tools, options.signal);
 			} else {
 				binding.writer = writer;
 				binding.pendingContextCount = context.messages.length;
@@ -408,7 +410,7 @@ export class AntigravityRuntime {
 
 		if (binding.toolFingerprint !== piToolFingerprint(tools)) {
 			await this.dropBinding(key, binding);
-			binding = await this.getBinding(key, model, acpModelId, options.apiKey, writer, tools, options.signal);
+			binding = await this.getBinding(key, model, acpModelId, apiKey, writer, tools, options.signal);
 		}
 
 		const previous = binding.queue;
@@ -427,7 +429,7 @@ export class AntigravityRuntime {
 			) {
 				if (binding.piSessionId) this.sessionStore?.remove(binding.piSessionId);
 				await this.dropBinding(key, binding);
-				binding = await this.getBinding(key, model, acpModelId, options.apiKey, writer, tools, options.signal);
+				binding = await this.getBinding(key, model, acpModelId, apiKey, writer, tools, options.signal);
 			}
 			binding.writer = writer;
 			if (binding.modelId !== acpModelId) {
@@ -463,7 +465,7 @@ export class AntigravityRuntime {
 			const usage = usageFromPrompt(response);
 			activeWriter.message.usage = usage;
 			this.metrics.record(response, usage);
-			activeWriter.message.rawStopReason = response.stopReason;
+
 			binding.messageCount = binding.pendingContextCount || parts.messageCount;
 			binding.historyFingerprint = binding.pendingContextFingerprint;
 			binding.expectedAssistantFingerprint = messageFingerprint(activeWriter.message);
@@ -831,6 +833,24 @@ function messagesFingerprint(messages: Context["messages"]): string {
 	return createHash("sha256").update(fingerprints.join("\n")).digest("hex");
 }
 
+/** OMP removes failed/aborted assistant turns and their paired tool results
+ * when rebuilding a saved session. Use the same history during live turns so
+ * a restart does not invalidate an otherwise resumable ACP binding. */
+function normalizeOmpHistory(context: Context): Context {
+	const failedToolCalls = new Set<string>();
+	for (const message of context.messages) {
+		if (message.role !== "assistant" || (message.stopReason !== "aborted" && message.stopReason !== "error")) continue;
+		for (const block of message.content) if (block.type === "toolCall") failedToolCalls.add(block.id);
+	}
+	return {
+		...context,
+		messages: context.messages.filter(message => {
+			if (message.role === "assistant") return message.stopReason !== "aborted" && message.stopReason !== "error";
+			return message.role !== "toolResult" || !failedToolCalls.has(message.toolCallId);
+		}),
+	};
+}
+
 function messageFingerprint(message: Context["messages"][number]): string {
 	let value: unknown;
 	if (message.role === "user") {
@@ -842,6 +862,8 @@ function messageFingerprint(message: Context["messages"][number]): string {
 			model: message.model,
 			content: message.content,
 		};
+	} else if (message.role === "developer") {
+		value = { role: message.role, content: message.content };
 	} else {
 		value = {
 			role: message.role,

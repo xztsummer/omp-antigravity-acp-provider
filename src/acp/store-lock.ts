@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { lockSync } from "proper-lockfile";
 
-/** Serialize the entire read/modify/rename transaction across Pi processes. */
+/** Serialize the entire read/modify/rename transaction across OMP processes. */
 export function withStoreLock(file: string, update: () => void): void {
 	fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
 	const deadline = Date.now() + 5_000;

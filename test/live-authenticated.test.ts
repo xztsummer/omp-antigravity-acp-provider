@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { AntigravityAcpConnection } from "../src/acp/connection.js";
 
-const enabled = process.env.PI_ANTIGRAVITY_ACP_LIVE === "1";
+const enabled = process.env.OMP_ANTIGRAVITY_ACP_LIVE === "1";
 
 describe.skipIf(!enabled)("authenticated Google Antigravity ACP server", () => {
 	it("creates a session and completes a harmless prompt", async () => {

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { resolveAntigravityAcpLaunch } from "./antigravity.js";
 import { redact } from "./errors.js";
+import { applyAcpProxyEnvironment } from "./proxy.js";
 const STDERR_LIMIT = 16 * 1024;
 // Longer than supervisor.mjs's 750 ms agent-tree escalation window.
 const KILL_GRACE_MS = 1_500;
@@ -46,7 +47,7 @@ export function resolveNodeBinary(
 	if (override) return override;
 	const candidate = process.execPath;
 	const base = (candidate.split(/[\\/]/).pop() ?? "").toLowerCase();
-	// A standalone Pi binary is not a Node interpreter, but Node itself can be
+	// A standalone OMP binary is not a Node interpreter, but Node itself can be
 	// named nodejs (not just node), particularly in Nix environments.
 	if (/^node(?:js)?(?:\.exe|\.cmd|\.bat)?$/.test(base)) return candidate;
 	for (const directory of (env.PATH ?? env.Path ?? "").split(path.delimiter)) {
@@ -143,7 +144,7 @@ export class AntigravityProcess {
 			resolveExit = resolve;
 		});
 
-		const env = applyDefaultTlsEnvironment(options.env ?? process.env);
+		const env = applyDefaultTlsEnvironment(applyAcpProxyEnvironment(options.env ?? process.env));
 		const child = spawn(command, args, {
 			cwd: path.resolve(options.cwd),
 			env,
@@ -245,4 +246,3 @@ function delay(ms: number): Promise<void> {
 		timer.unref?.();
 	});
 }
-

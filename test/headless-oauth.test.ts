@@ -19,10 +19,10 @@ describe("headless OAuth detection", () => {
 
 	it("honors an explicit mode override", () => {
 		expect(
-			shouldUseHeadlessOAuth({ PI_ANTIGRAVITY_ACP_OAUTH_MODE: "manual", DISPLAY: ":0" }, "linux"),
+			shouldUseHeadlessOAuth({ OMP_ANTIGRAVITY_ACP_OAUTH_MODE: "manual", DISPLAY: ":0" }, "linux"),
 		).toBe(true);
 		expect(
-			shouldUseHeadlessOAuth({ PI_ANTIGRAVITY_ACP_OAUTH_MODE: "browser", SSH_TTY: "/dev/pts/1" }, "linux"),
+			shouldUseHeadlessOAuth({ OMP_ANTIGRAVITY_ACP_OAUTH_MODE: "browser", SSH_TTY: "/dev/pts/1" }, "linux"),
 		).toBe(false);
 	});
 });

@@ -1,5 +1,5 @@
 import type { PromptResponse } from "@agentclientprotocol/sdk";
-import type { Usage } from "@earendil-works/pi-ai";
+import type { Usage } from "@oh-my-pi/pi-ai";
 
 export interface QuotaSnapshot {
 	remaining?: number;
@@ -33,7 +33,7 @@ export class RuntimeMetrics {
 		this.totals.turns += 1;
 		this.totals.input += usage.input;
 		this.totals.output += usage.output;
-		this.totals.reasoning += usage.reasoning ?? 0;
+		this.totals.reasoning += usage.reasoningTokens ?? 0;
 		this.totals.cacheRead += usage.cacheRead;
 		this.totals.cacheWrite += usage.cacheWrite;
 		this.latestQuota = quotaFromPrompt(response) ?? this.latestQuota;

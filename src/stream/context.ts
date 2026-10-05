@@ -1,5 +1,5 @@
 import type { ContentBlock } from "@agentclientprotocol/sdk";
-import type { Context, Message } from "@earendil-works/pi-ai";
+import type { Context, Message } from "@oh-my-pi/pi-ai";
 
 import { AntigravityAcpError } from "../acp/errors.js";
 
@@ -54,7 +54,7 @@ export function buildPromptParts(
 	if (hasTrailingResults) {
 		prompt.push({
 			type: "text",
-			text: "Continue from the reconstructed Pi context above. Incorporate the latest tool results without repeating completed tool actions.",
+			text: "Continue from the reconstructed OMP context above. Incorporate the latest tool results without repeating completed tool actions.",
 		});
 	} else if (typeof latest.content === "string") {
 		if (latest.content.length > 0) prompt.push({ type: "text", text: latest.content });
@@ -70,8 +70,8 @@ export function buildPromptParts(
 
 function buildReconstruction(context: Context, historyEnd: number): string {
 	const sections: string[] = [];
-	if (context.systemPrompt?.trim()) {
-		sections.push(`# Pi session instructions\n\n${context.systemPrompt.trim()}`);
+	if (context.systemPrompt?.join("\n\n").trim()) {
+		sections.push(`# OMP session instructions\n\n${context.systemPrompt.join("\n\n").trim()}`);
 	}
 
 	const history = context.messages.slice(0, historyEnd).map(formatMessage).filter(Boolean);
@@ -102,6 +102,7 @@ function findLatestUserIndex(messages: Message[]): number {
 }
 
 function formatMessage(message: Message): string {
+	if (message.role === "developer") return `## Developer\n${contentText(message.content)}`;
 	if (message.role === "user") return `## User\n${contentText(message.content)}`;
 	if (message.role === "assistant") {
 		const content = message.content

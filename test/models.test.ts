@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { projectModels, resolveAcpModelId } from "../src/models.js";
 import { createAntigravityProvider } from "../src/provider.js";
+import { MANAGED_AUTH_MARKER } from "../src/constants.js";
 
 describe("projectModels", () => {
 	it("deduplicates and rejects unsafe ids", () => {
@@ -24,21 +25,55 @@ describe("projectModels", () => {
 		]);
 
 		expect(models.map((model) => model.id)).toEqual(["gemini-3.8-flash", "gemini-3.1-pro"]);
-		expect(models[0]?.thinkingLevelMap?.off).toBeNull();
-		expect(models[0]?.thinkingLevelMap?.medium).toBe("gemini-3.8-flash-medium");
+		expect(models[0]?.thinking?.effortRouting?.off).toBeUndefined();
+		expect(models[0]?.thinking?.effortRouting?.medium).toBe("gemini-3.8-flash-medium");
 		expect(resolveAcpModelId(models[0]!, "low")).toBe("gemini-3.8-flash-low");
 		expect(resolveAcpModelId(models[0]!, "high")).toBe("gemini-3.8-flash-high");
-		expect(models[1]?.thinkingLevelMap?.medium).toBeNull();
+		expect(models[1]?.thinking?.effortRouting?.medium).toBeUndefined();
 		expect(resolveAcpModelId(models[1]!, "medium")).toBe("gemini-pro-agent");
 	});
 
-	it("registers separate Google-account and API-key login methods", async () => {
+	it("registers the OMP OAuth adapter and stream provider", async () => {
 		const { provider, runtime } = createAntigravityProvider();
 		try {
-			expect(provider.auth.oauth?.loginLabel).toBe("Sign in with Google");
-			expect(provider.auth.apiKey?.name).toBe("Antigravity Gemini API key");
+			expect(provider.oauth?.name).toBe("Google Antigravity (official ACP)");
+			expect(provider.streamSimple).toBeTypeOf("function");
 		} finally {
 			await runtime.close();
 		}
+	});
+
+	it("relays OMP OAuth callbacks and stores only a non-secret marker", async () => {
+		const { provider, runtime } = createAntigravityProvider();
+		const signal = new AbortController().signal;
+		const onAuth = vi.fn();
+		const onManualCodeInput = vi.fn(async () => "http://127.0.0.1:1234/?code=example&state=test");
+		vi.spyOn(runtime, "loginGoogle").mockImplementation(async (receivedSignal, _progress, interaction) => {
+			expect(receivedSignal).toBe(signal);
+			interaction!.showAuthorizationUrl("https://accounts.google.com/example", "Sign in with the official runtime");
+			expect(await interaction!.promptForCallback(signal)).toContain("code=example");
+		});
+		try {
+			const credentials = await provider.oauth!.login({ onAuth, onPrompt: vi.fn(), onManualCodeInput, signal });
+			if (typeof credentials === "string") throw new Error("Expected an OMP OAuth marker credential");
+			expect(onAuth).toHaveBeenCalledWith({ url: "https://accounts.google.com/example", instructions: "Sign in with the official runtime" });
+			expect(onManualCodeInput).toHaveBeenCalledWith(signal);
+			expect(credentials.access).toBe(MANAGED_AUTH_MARKER);
+			expect(credentials.refresh).toBe(MANAGED_AUTH_MARKER);
+		} finally { await runtime.close(); }
+	});
+
+	it("discovers models through ACP with a deadline within OMP's discovery limit", async () => {
+		const { provider, runtime } = createAntigravityProvider();
+		const discover = vi.spyOn(runtime, "discoverModels").mockResolvedValue([
+			{ modelId: "gemini-test-low", name: "Gemini Test (Low)" },
+			{ modelId: "gemini-test-high", name: "Gemini Test (High)" },
+		]);
+		try {
+			const models = await provider.fetchDynamicModels!(MANAGED_AUTH_MARKER);
+			expect(models[0]?.id).toBe("gemini-test");
+			expect(models[0]?.thinking?.effortRouting?.high).toBe("gemini-test-high");
+			expect(discover).toHaveBeenCalledWith(MANAGED_AUTH_MARKER, expect.any(AbortSignal));
+		} finally { await runtime.close(); }
 	});
 });

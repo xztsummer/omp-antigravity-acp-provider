@@ -7,7 +7,7 @@ import { AntigravityAcpConnection } from "../src/acp/connection.js";
 import { HeadlessOAuthRelay } from "../src/acp/headless-oauth.js";
 import { resolveAntigravityAcpEntry } from "../src/acp/process.js";
 
-const enabled = process.env.PI_ANTIGRAVITY_ACP_REAL === "1";
+const enabled = process.env.OMP_ANTIGRAVITY_ACP_REAL === "1";
 
 describe.skipIf(!enabled)("Google Antigravity ACP contract", () => {
 	it("resolves the Antigravity server and completes ACP initialize", async () => {

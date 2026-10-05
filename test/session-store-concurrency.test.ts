@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { resolveNodeBinary } from "../src/acp/process.js";
 import { AcpSessionStore } from "../src/acp/session-store.js";
 import { withStoreLock } from "../src/acp/store-lock.js";
 
@@ -20,6 +21,7 @@ describe("cross-process session transactions", () => {
 			for (const name of ["store-lock", "session-store"]) {
 				const source = fs.readFileSync(fileURLToPath(new URL(`../src/acp/${name}.ts`, import.meta.url)), "utf8");
 				const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText
+					.replace('require("../config.js")', `({ CONFIG_ROOT: ${JSON.stringify(dir)} })`)
 					.replace('require("./store-lock.js")', 'require("./store-lock.cjs")')
 					.replace('require("proper-lockfile")', `require(${JSON.stringify(require.resolve("proper-lockfile"))})`);
 				fs.writeFileSync(path.join(dir, `${name}.cjs`), compiled);
@@ -42,7 +44,7 @@ describe("cross-process session transactions", () => {
 				for (let i = 0; i < 6; i++) store.remove(id + ':' + i);
 			`;
 			await Promise.all(Array.from({ length: 4 }, (_, i) => new Promise<void>((resolve, reject) => {
-				const child = spawn(process.execPath, ["-e", worker, String(i)], { stdio: ["ignore", "ignore", "pipe"] });
+				const child = spawn(resolveNodeBinary(), ["-e", worker, String(i)], { stdio: ["ignore", "ignore", "pipe"] });
 				let stderr = "";
 				child.stderr.on("data", (chunk) => { stderr += chunk; });
 				child.on("error", reject);

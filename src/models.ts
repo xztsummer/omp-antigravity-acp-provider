@@ -1,18 +1,19 @@
+import type { ProviderModelConfig } from "@oh-my-pi/pi-coding-agent";
 import type { ModelInfo } from "@agentclientprotocol/sdk";
 import type {
-	Model,
-	ThinkingLevel,
-	ThinkingLevelMap,
-} from "@earendil-works/pi-ai";
+	ModelSpec,
+} from "@oh-my-pi/pi-ai";
 
 export const PROVIDER_ID = "antigravity-acp";
 export const API_ID = "antigravity-acp";
+
+export type AntigravityModelSpec = ModelSpec<typeof API_ID> & ProviderModelConfig;
 
 const ZERO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } as const;
 type Effort = "low" | "medium" | "high";
 type Variants = Partial<Record<Effort, string>>;
 
-export const FALLBACK_MODELS: readonly Model<typeof API_ID>[] = [
+export const FALLBACK_MODELS: readonly AntigravityModelSpec[] = [
 	reasoningModel("gemini-3.8-flash", "Gemini 3.8 Flash", {
 		low: "gemini-3.8-flash-low",
 		medium: "gemini-3.8-flash-medium",
@@ -34,10 +35,10 @@ export const FALLBACK_MODELS: readonly Model<typeof API_ID>[] = [
 	}),
 ];
 
-/** Collapse Antigravity's effort-qualified ACP IDs into one Pi model. The
- * exact server IDs live in thinkingLevelMap, allowing Shift+Tab to select the
+/** Collapse Antigravity's effort-qualified ACP IDs into one OMP model. The
+ * exact server IDs live in thinking.effortRouting, allowing Shift+Tab to select the
  * corresponding low/medium/high variant without cluttering /model. */
-export function projectModels(models: readonly ModelInfo[]): Model<typeof API_ID>[] {
+export function projectModels(models: readonly ModelInfo[]): AntigravityModelSpec[] {
 	const safe = models.filter((candidate) => validModelId(candidate.modelId.trim()));
 	const groups = new Map<
 		string,
@@ -57,7 +58,7 @@ export function projectModels(models: readonly ModelInfo[]): Model<typeof API_ID
 
 	const emittedGroups = new Set<string>();
 	const emittedIds = new Set<string>();
-	const projected: Model<typeof API_ID>[] = [];
+	const projected: AntigravityModelSpec[] = [];
 	for (const candidate of safe) {
 		const id = candidate.modelId.trim();
 		if (emittedIds.has(id)) continue;
@@ -79,13 +80,13 @@ export function projectModels(models: readonly ModelInfo[]): Model<typeof API_ID
 	return projected;
 }
 
-/** Resolve Pi's current reasoning level to the exact model ID advertised by
+/** Resolve OMP's current reasoning level to the exact model ID advertised by
  * Antigravity. Unsupported programmatic levels clamp to the nearest tier. */
 export function resolveAcpModelId(
-	model: Model<typeof API_ID>,
-	reasoning: ThinkingLevel | undefined,
+	model: Pick<ModelSpec, "id" | "reasoning" | "thinking">,
+	reasoning: string | undefined,
 ): string {
-	const map = model.thinkingLevelMap;
+	const map = model.thinking?.effortRouting;
 	if (!model.reasoning || !map) return model.id;
 	const preferred: Effort =
 		reasoning === "minimal" || reasoning === "low"
@@ -110,20 +111,16 @@ function reasoningModel(
 	id: string,
 	name: string,
 	variants: Variants,
-): Model<typeof API_ID> {
-	const thinkingLevelMap: ThinkingLevelMap = {
-		off: null,
-		minimal: null,
-		low: variants.low ?? null,
-		medium: variants.medium ?? null,
-		high: variants.high ?? null,
-		xhigh: null,
-		max: null,
-	};
-	return baseModel(id, name, true, thinkingLevelMap);
+): AntigravityModelSpec {
+	const efforts = (["low", "medium", "high"] as const).filter((effort) => variants[effort]);
+	return baseModel(id, name, true, {
+		mode: "effort",
+		efforts: efforts as NonNullable<ModelSpec["thinking"]>["efforts"],
+		effortRouting: variants,
+	});
 }
 
-function fixedModel(id: string, name: string): Model<typeof API_ID> {
+function fixedModel(id: string, name: string): AntigravityModelSpec {
 	return baseModel(id, name, false);
 }
 
@@ -131,8 +128,8 @@ function baseModel(
 	id: string,
 	name: string,
 	reasoning: boolean,
-	thinkingLevelMap?: ThinkingLevelMap,
-): Model<typeof API_ID> {
+	thinking?: ModelSpec["thinking"],
+): AntigravityModelSpec {
 	return {
 		id,
 		name,
@@ -140,7 +137,7 @@ function baseModel(
 		provider: PROVIDER_ID,
 		baseUrl: "",
 		reasoning,
-		...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+		...(thinking ? { thinking } : {}),
 		input: ["text", "image"],
 		cost: ZERO_COST,
 		contextWindow: 1_000_000,

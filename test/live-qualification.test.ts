@@ -1,11 +1,11 @@
-import type { Tool } from "@earendil-works/pi-ai";
+import type { Tool } from "@oh-my-pi/pi-ai";
 import { Type } from "typebox";
 import { describe, expect, it } from "vitest";
 
 import { AntigravityAcpConnection } from "../src/acp/connection.js";
 import { PiMcpBridge } from "../src/mcp/bridge.js";
 
-const enabled = process.env.PI_ANTIGRAVITY_ACP_QUALIFY === "1";
+const enabled = process.env.OMP_ANTIGRAVITY_ACP_QUALIFY === "1";
 
 function connection(overrides: Partial<ConstructorParameters<typeof AntigravityAcpConnection>[0]> = {}) {
 	return new AntigravityAcpConnection({ ...overrides, cwd: overrides.cwd ?? process.cwd(), operationTimeoutMs: 120_000 });

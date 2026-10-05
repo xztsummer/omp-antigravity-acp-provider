@@ -1,5 +1,5 @@
 import type { McpServer as AcpMcpServer } from "@agentclientprotocol/sdk";
-import type { Tool } from "@earendil-works/pi-ai";
+import type { Tool } from "@oh-my-pi/pi-ai";
 import {
 	CallToolRequestSchema,
 	ListToolsRequestSchema,
@@ -108,7 +108,7 @@ export class PiMcpBridge {
 		}
 		const body = await readJson(request);
 		const protocol = new Server(
-			{ name: "pi-antigravity-acp-tools", version: PACKAGE_VERSION },
+			{ name: "omp-antigravity-acp-tools", version: PACKAGE_VERSION },
 			{ capabilities: { tools: {} } },
 		);
 		protocol.setRequestHandler(ListToolsRequestSchema, () => ({
@@ -120,14 +120,18 @@ export class PiMcpBridge {
 		}));
 		protocol.setRequestHandler(CallToolRequestSchema, async (call) => {
 			const tool = this.tools.find((candidate) => candidate.mcpName === call.params.name);
-			if (!tool) return toolError("Unknown or inactive Pi tool");
+			if (!tool) return toolError("Unknown or inactive OMP tool");
 			const args = call.params.arguments ?? {};
 			try {
-				if (!Value.Check(tool.originalSchema, args)) {
-					return toolError("Arguments failed the original Pi tool schema");
+				const schema = tool.originalSchema;
+				const valid = typeof schema === "function" && "allows" in schema
+					? schema.allows(args)
+					: Value.Check(schema, args);
+				if (!valid) {
+					return toolError("Arguments failed the original OMP tool schema");
 				}
 			} catch {
-				return toolError("The original Pi tool schema could not validate these arguments");
+				return toolError("The original OMP tool schema could not validate these arguments");
 			}
 			return this.options.onCall({ id: crypto.randomUUID(), name: tool.piName, arguments: args });
 		});
@@ -160,7 +164,16 @@ function projectTools(tools: readonly Tool[], omissions: string[]): BridgeTool[]
 			omissions.push(`${tool.name}: duplicate or invalid projected name`);
 			continue;
 		}
-		const inputSchema = sanitizeSchema(tool.parameters);
+		let inputSchema: Record<string, unknown> | undefined;
+		try {
+			const schema = tool.parameters;
+			inputSchema = sanitizeSchema(
+				typeof schema === "function" && "toJsonSchema" in schema ? schema.toJsonSchema() : schema,
+			);
+		} catch {
+			omissions.push(`${tool.name}: schema could not be exported`);
+			continue;
+		}
 		if (
 			!inputSchema ||
 			inputSchema.type !== "object" ||

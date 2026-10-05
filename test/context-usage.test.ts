@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/pi-ai";
+import type { Context } from "@oh-my-pi/pi-ai";
 import { describe, expect, it } from "vitest";
 
 import { buildPromptParts } from "../src/stream/context.js";
@@ -8,7 +8,7 @@ import { usageFromPrompt } from "../src/stream/usage.js";
 describe("prompt context", () => {
 	it("reconstructs history only for a fresh binding", () => {
 		const context: Context = {
-			systemPrompt: "Follow project rules",
+			systemPrompt: ["Follow project rules"],
 			messages: [
 				{ role: "user", content: "old", timestamp: 1 },
 				{
@@ -108,7 +108,7 @@ describe("usageFromPrompt", () => {
 			output: 8,
 			cacheRead: 5,
 			cacheWrite: 2,
-			reasoning: 3,
+			reasoningTokens: 3,
 			totalTokens: 30,
 		});
 	});

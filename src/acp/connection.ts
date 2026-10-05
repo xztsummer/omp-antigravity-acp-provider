@@ -93,8 +93,8 @@ export class AntigravityAcpConnection {
 					terminal: false,
 				},
 				clientInfo: {
-					name: "pi-antigravity-acp-provider",
-					title: "Pi Antigravity ACP Provider",
+					name: "omp-antigravity-acp-provider",
+					title: "OMP Antigravity ACP Provider",
 					version: PACKAGE_VERSION,
 				},
 			}),

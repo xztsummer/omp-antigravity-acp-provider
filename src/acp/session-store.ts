@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import os from "node:os";
+import { CONFIG_ROOT } from "../config.js";
 import path from "node:path";
 import { withStoreLock } from "./store-lock.js";
 
@@ -14,13 +14,7 @@ export interface SavedSessionRecord {
 	lastActive: number;
 }
 
-const DEFAULT_PATH = path.join(
-	os.homedir(),
-	".pi",
-	"agent",
-	"antigravity-acp-provider",
-	"sessions.json",
-);
+const DEFAULT_PATH = path.join(CONFIG_ROOT, "sessions.json");
 const MAX_RECORDS = 256;
 const MAX_AGE_MS = 30 * 24 * 60 * 60_000;
 

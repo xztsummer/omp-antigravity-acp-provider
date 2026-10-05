@@ -1,4 +1,4 @@
-import type { Api, Model } from "@earendil-works/pi-ai";
+import type { Api, Model } from "@oh-my-pi/pi-ai";
 import { describe, expect, it } from "vitest";
 
 import { PiEventWriter } from "../src/stream/pi-events.js";
@@ -9,6 +9,8 @@ const model: Model<Api> = {
 	api: "antigravity-acp",
 	provider: "antigravity-acp",
 	baseUrl: "",
+	identity: { class: "unknown" },
+	compat: undefined,
 	reasoning: true,
 	input: ["text"],
 	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },

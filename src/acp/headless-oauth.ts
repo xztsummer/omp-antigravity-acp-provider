@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const CAPTURE_ENV = "PI_ANTIGRAVITY_OAUTH_CAPTURE_FILE";
+const CAPTURE_ENV = "OMP_ANTIGRAVITY_OAUTH_CAPTURE_FILE";
 const CAPTURE_TIMEOUT_MS = 30_000;
 const MAX_CAPTURE_BYTES = 64 * 1024;
 
@@ -14,7 +14,7 @@ export interface CapturedOAuthAuthorization {
 
 /** ACP 1.1.1 does not surface its OAuth URL. On a remote/headless host we
  * replace the browser command with a private capture helper, display the URL
- * through Pi, and relay the browser's final loopback callback locally. */
+ * through OMP, and relay the browser's final loopback callback locally. */
 export class HeadlessOAuthRelay {
 	readonly env: NodeJS.ProcessEnv;
 	private readonly directory: string;
@@ -25,7 +25,7 @@ export class HeadlessOAuthRelay {
 		if (process.platform === "win32") {
 			throw new Error("Manual Antigravity OAuth capture is not yet supported on Windows hosts");
 		}
-		this.directory = fs.mkdtempSync(path.join(os.tmpdir(), "pi-antigravity-oauth-"));
+		this.directory = fs.mkdtempSync(path.join(os.tmpdir(), "omp-antigravity-oauth-"));
 		fs.chmodSync(this.directory, 0o700);
 		this.captureFile = path.join(this.directory, "authorization-url");
 		const browser = path.join(this.directory, "capture-browser");
@@ -102,7 +102,7 @@ export function shouldUseHeadlessOAuth(
 	environment: NodeJS.ProcessEnv = process.env,
 	platform: NodeJS.Platform = process.platform,
 ): boolean {
-	const override = environment.PI_ANTIGRAVITY_ACP_OAUTH_MODE?.trim().toLowerCase();
+	const override = environment.OMP_ANTIGRAVITY_ACP_OAUTH_MODE?.trim().toLowerCase();
 	if (override === "manual") return true;
 	if (override === "browser") return false;
 	if (environment.SSH_CONNECTION || environment.SSH_CLIENT || environment.SSH_TTY) return true;

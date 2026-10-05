@@ -28,6 +28,10 @@ export function resolveAntigravityAcpLaunch(): AntigravityLaunch {
 	const userBin = path.join(os.homedir(), ".local", "bin", "agy_acp_server.par");
 	if (executable(userBin)) return { command: userBin, args: [], source: "user-bin" };
 
+	// Reuse an official runtime installed by another local ACP client.
+	const shared = path.join(os.homedir(), ".local", "share", "antigravity-acp", process.platform === "win32" ? "agy_acp_server.exe" : "agy_acp_server.par");
+	if (executable(shared)) return directOrWrapper(shared, "user-bin");
+
 	for (const directory of (process.env.PATH ?? "").split(path.delimiter)) {
 		if (!directory) continue;
 		const candidate = path.join(directory, "agy_acp_server.par");

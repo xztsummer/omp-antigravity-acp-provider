@@ -1,8 +1,7 @@
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
-} from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+} from "@oh-my-pi/pi-coding-agent";
 
 import { inspectAntigravityAuth } from "../src/acp/antigravity.js";
 import { resolveAntigravityAcpEntry } from "../src/acp/process.js";
@@ -25,7 +24,7 @@ import {
 	ACP_SDK_VERSION,
 	PACKAGE_VERSION,
 } from "../src/constants.js";
-import { createAntigravityProvider } from "../src/provider.js";
+import { createAntigravityProvider, PROVIDER_ID } from "../src/provider.js";
 import {
 	AntigravityRuntime,
 	PERMISSION_RESULT_KIND,
@@ -37,14 +36,15 @@ import { runSetupWizard } from "../src/wizard.js";
 export default function antigravityAcpExtension(pi: ExtensionAPI): void {
 	const runtime = new AntigravityRuntime(undefined, loadConfig().permissions);
 	const { provider } = createAntigravityProvider(runtime);
-	pi.registerProvider(provider);
+	pi.registerProvider(PROVIDER_ID, provider);
 
 	pi.registerTool({
 		name: PERMISSION_TOOL_NAME,
 		label: "Antigravity ACP Permission",
 		description: "Presents an Antigravity ACP permission request to the user. Only call IDs emitted by the provider are valid.",
-		parameters: Type.Object({ requestId: Type.String({ minLength: 1, maxLength: 128 }) }),
-		executionMode: "sequential",
+		parameters: pi.typebox.Type.Object({ requestId: pi.typebox.Type.String({ minLength: 1, maxLength: 128 }) }),
+		loadMode: "essential",
+		approval: "read",
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const request = runtime.getPermission(params.requestId);
 			if (!request) throw new Error("This Antigravity permission request is missing, expired, or already used");
@@ -83,13 +83,14 @@ export default function antigravityAcpExtension(pi: ExtensionAPI): void {
 			const command = args.trim() || "doctor";
 			if (command === "setup") {
 				await runSetupWizard(ctx.ui, runtime);
+				pi.registerProvider(PROVIDER_ID, createAntigravityProvider(runtime).provider);
 				return;
 			}
 			if (command === "update" || command === "update-runtime") {
 				const result = await updateAntigravityAcpRuntime((message) => ctx.ui.notify(message, "info"));
 				ctx.ui.notify(
 					result.changed
-						? `Installed verified Antigravity ACP ${result.version}. Restart Pi to move active sessions to it.`
+						? `Installed verified Antigravity ACP ${result.version}. Restart OMP to move active sessions to it.`
 						: `Antigravity ACP ${result.version} is already the latest signed release.`,
 					"info",
 				);
@@ -115,7 +116,7 @@ export default function antigravityAcpExtension(pi: ExtensionAPI): void {
 			if (command === "logout" || command === "account" || command === "switch-account") {
 				await runtime.logout();
 				ctx.ui.notify(
-					"Local Antigravity credentials and saved ACP sessions were cleared. Run /logout for the old Pi marker, then /login to choose the next account.",
+					"Local Antigravity credentials and saved ACP sessions were cleared. Run /logout for the old OMP marker, then /login to choose the next account.",
 					"info",
 				);
 				return;
@@ -127,15 +128,16 @@ export default function antigravityAcpExtension(pi: ExtensionAPI): void {
 			}
 			if (command === "qualify") {
 				await runSetupWizard(ctx.ui, runtime);
+				pi.registerProvider(PROVIDER_ID, createAntigravityProvider(runtime).provider);
 				return;
 			}
 			if (command === "permissions" || command.startsWith("permissions ")) {
 				let requested = command.slice("permissions".length).trim().replaceAll("-", "_");
 				if (!requested) {
 					const choices = [
-						"yolo — allow commands and edits automatically (default)",
+						"yolo — allow commands and edits automatically",
 						"auto-edit — allow edits automatically; commands may ask",
-						"default — ask before sensitive operations",
+						"default — ask before sensitive operations (default)",
 					];
 					const selected = await ctx.ui.select("Antigravity permission mode", choices);
 					if (!selected) return;
@@ -219,7 +221,7 @@ export default function antigravityAcpExtension(pi: ExtensionAPI): void {
 				);
 			}
 		} catch {
-			// Update checks are advisory and must not interrupt Pi startup.
+			// Update checks are advisory and must not interrupt OMP startup.
 		}
 	});
 
@@ -242,7 +244,6 @@ function formatMetrics(metrics: {
 	const totalTokens =
 		metrics.totals.input +
 		metrics.totals.output +
-		metrics.totals.reasoning +
 		metrics.totals.cacheRead +
 		metrics.totals.cacheWrite;
 	const quota = metrics.latestQuota;
