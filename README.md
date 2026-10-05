@@ -1,6 +1,6 @@
 # omp-antigravity-acp-provider
 
-把 [pi-antigravity-acp-provider](https://github.com/zacbemis/pi-antigravity-acp-provider) 移植为 [Oh My Pi（OMP）](https://github.com/can1357/oh-my-pi) 插件。基于上游 0.1.12，当前适配版本 0.1.0-omp.1，目标 OMP 18.6.1。
+把 [pi-antigravity-acp-provider](https://github.com/zacbemis/pi-antigravity-acp-provider) 移植为 [Oh My Pi（OMP）](https://github.com/can1357/oh-my-pi) 插件。基于上游 0.1.12，当前适配版本 0.1.0-omp.2，目标 OMP 18.6.1。
 
 调用路径：**OMP → 本机官方 Antigravity ACP server → Google**。注册独立的 `antigravity-acp` provider，登录和 Google 请求由官方 ACP 程序处理。插件不会提取 OAuth token 转发到 OMP 自带的 `google-antigravity` 接口。使用官方运行时并不构成不会封号的保证。
 
@@ -11,13 +11,13 @@
 ### 推荐：直接从 GitHub 安装
 
 ```sh
-omp plugin install github:xztsummer/omp-antigravity-acp-provider#v0.1.0-omp.1
+omp plugin install github:xztsummer/omp-antigravity-acp-provider#v0.1.0-omp.2
 omp
 ```
 
-默认安装到用户级插件目录，重开 OMP 后自动加载。需要固定项目安装时，在该项目目录追加 `--scope project`。本项目当前通过 GitHub 发布，尚未发布到 npm，不要把项目名当作 npm 包安装。
+默认安装到用户级插件目录，重开 OMP 后自动加载。OMP 18.6.1 的 Git 插件安装是用户级，不能通过 `--scope project` 改为项目级。本项目当前通过 GitHub 发布，尚未发布到 npm，不要把项目名当作 npm 包安装。
 
-升级到后续版本时，用对应的新版本 tag 重跑安装命令。例如更换 `#v0.1.0-omp.1` 为新 release 的 tag；也可以安装 `github:xztsummer/omp-antigravity-acp-provider#main` 跟随主分支，并使用 `omp plugin upgrade omp-antigravity-acp-provider` 获取更新。
+升级到后续版本时，用对应的新版本 tag 重跑安装命令。例如更换 `#v0.1.0-omp.2` 为新 release 的 tag；也可以安装 `github:xztsummer/omp-antigravity-acp-provider#main` 跟随主分支，并使用 `omp plugin upgrade omp-antigravity-acp-provider` 获取更新。
 
 ### 从源码安装
 
@@ -26,13 +26,19 @@ omp
 ```sh
 git clone https://github.com/xztsummer/omp-antigravity-acp-provider.git
 cd omp-antigravity-acp-provider
-git checkout v0.1.0-omp.1
+git checkout v0.1.0-omp.2
 npm ci --omit=dev --ignore-scripts
 npm run install:omp
 omp
 ```
 
-`install:omp` 将当前目录链接到 OMP，不复制源码；保留该目录，修改源码后重开 OMP 生效。宿主 OMP 提供接口依赖，普通安装不必重复安装完整 OMP SDK。移除插件使用 `omp plugin uninstall omp-antigravity-acp-provider`，它不清除官方 ACP 的登录状态。
+`install:omp` 将当前目录链接到 OMP 用户级插件目录，不复制源码；保留该目录，修改源码后重开 OMP 生效。宿主 OMP 提供接口依赖，普通安装不必重复安装完整 OMP SDK。移除插件使用 `omp plugin uninstall omp-antigravity-acp-provider`，它不清除官方 ACP 的登录状态。
+
+也可在安装运行依赖后临时试用，不注册用户级插件：
+
+```sh
+omp --no-extensions -e ./extensions/index.ts
+```
 
 ### 在 OMP 中完成登录和选择模型
 

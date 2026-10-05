@@ -55,4 +55,6 @@ Google 认证和网络访问由官方 ACP 运行时完成，插件不把 Google 
 
 ## GitHub 首次发布
 
-发布版本为 `0.1.0-omp.1`，tag `v0.1.0-omp.1`。使用 OMP 后缀以区别 fork 中保留的上游原版 Pi tags。发布前重新通过 112 项离线测试与打包安装检查，并添加 GitHub 安装、源码安装、升级和卸载说明；OMP 宿主 peer 依赖设为 optional，普通安装不再拉取完整宿主 SDK。
+最终发布版本为 `0.1.0-omp.2`，tag `v0.1.0-omp.2`。使用 OMP 后缀以区别 fork 中保留的上游原版 Pi tags。发布前重新通过 112 项离线测试与打包安装检查，并添加 GitHub 安装、源码安装、升级和卸载说明；OMP 宿主 peer 依赖设为 optional，普通安装不再拉取完整宿主 SDK。
+
+GitHub 安装实测后校正：OMP 18.6.1 的 Git/source-link 安装使用用户级插件目录，不支持 `--scope project`。开发依赖中移除 Bun npm 包，使用 PATH 中的 Bun，避免 `npm ci --ignore-scripts` 后本地 Bun 占位程序遮住 CI 的已安装 Bun。
